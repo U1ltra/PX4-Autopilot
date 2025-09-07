@@ -169,6 +169,25 @@ void OutputMavlinkV2::update(const ControlData &control_data, bool new_setpoints
 
 		_publish_gimbal_device_set_attitude();
 	}
+
+
+	// matrix::Eulerf euler_vehicle0{};
+
+	// vehicle_attitude_s vehicle_attitude0;
+	// if (_vehicle_attitude_sub.copy(&vehicle_attitude0)) {
+	// 	euler_vehicle0 = matrix::Quatf(vehicle_attitude0.q);
+
+	// 	PX4_INFO("Vehicle attitude - q: [%.3f, %.3f, %.3f, %.3f]",
+	// 	(double)vehicle_attitude0.q[0],
+	// 	(double)vehicle_attitude0.q[1],
+	// 	(double)vehicle_attitude0.q[2],
+	// 	(double)vehicle_attitude0.q[3]);
+
+	// 	PX4_INFO("Vehicle attitude - Roll: %.1f°, Pitch: %.1f°, Yaw: %.1f°",
+	// 	(double)math::degrees(euler_vehicle0(0)),
+	// 	(double)math::degrees(euler_vehicle0(1)),
+	// 	(double)math::degrees(euler_vehicle0(2)));
+	// }
 }
 
 void OutputMavlinkV2::_request_gimbal_device_information()

@@ -38,8 +38,11 @@
 #include "input_rc.h"
 #include <cstdint>
 
+#include <lib/mathlib/math/filter/LowPassFilter2p.hpp>
+#include <lib/mathlib/math/filter/NotchFilter.hpp>
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/gimbal_device_attitude_status.h>
 #include <uORB/topics/gimbal_device_information.h>
 #include <uORB/topics/gimbal_manager_information.h>
@@ -104,6 +107,32 @@ public:
 	int initialize() override;
 	void print_status() const override;
 
+	// void Initialize(float sample_rate, float cutoff_freq) {
+	// 	_sample_rate_hz = sample_rate;
+	// 	_cutoff_freq_hz = cutoff_freq;
+
+	// 	for (int axis = 0; axis < 3; axis++) {
+	// 	_lp_filter[axis].set_cutoff_frequency(sample_rate, cutoff_freq);
+	// 	_lp_filter[axis].reset(0.0f);
+
+	// 	// Optional: configure notch filter for known vibrations
+	// 	// _notch_filter[axis].setParameters(sample_rate, notch_freq, bandwidth);
+	// 	}
+	// }
+
+	// Vector3f ProcessSample(const sensor_gyro_s& data) {
+	// 	Vector3f raw_data(data.x, data.y, data.z);
+
+	// 	// Apply filtering
+	// 	for (int axis = 0; axis < 3; axis++) {
+	// 	float filtered = _lp_filter[axis].apply(raw_data(axis));
+	// 	// filtered = _notch_filter[axis].apply(filtered); // If using notch
+	// 	_angular_velocity(axis) = filtered;
+	// 	}
+
+	// 	return _angular_velocity;
+	// }
+
 private:
 	UpdateResult _process_set_attitude(ControlData &control_data, const gimbal_manager_set_attitude_s &set_attitude);
 	UpdateResult _process_vehicle_roi(ControlData &control_data, const vehicle_roi_s &vehicle_roi);
@@ -125,6 +154,7 @@ private:
 	int _position_setpoint_triplet_sub = -1;
 	int _vehicle_command_sub = -1;
 
+	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription _gimbal_device_attitude_status_sub{ORB_ID(gimbal_device_attitude_status)};
 	uORB::Subscription _gimbal_device_information_sub{ORB_ID(gimbal_device_information)};
 	uORB::Publication<gimbal_manager_information_s> _gimbal_manager_info_pub{ORB_ID(gimbal_manager_information)};
@@ -132,6 +162,14 @@ private:
 	uint8_t _cur_roi_mode = vehicle_roi_s::ROI_NONE;
 
 	uint8_t _last_device_compid = 0;
+
+
+	// math::LowPassFilter2p<float> _lp_filter[3];
+	// math::NotchFilter<float> _notch_filter[3];  // Optional
+	// float _sample_rate_hz;
+	// float _cutoff_freq_hz;
+	// Vector3f _angular_velocity;
+
 };
 
 } /* namespace gimbal */

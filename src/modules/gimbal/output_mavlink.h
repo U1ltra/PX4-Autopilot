@@ -80,6 +80,7 @@ private:
 
 	uORB::Publication<gimbal_device_set_attitude_s> _gimbal_device_set_attitude_pub{ORB_ID(gimbal_device_set_attitude)};
 	uORB::Subscription _gimbal_device_information_sub{ORB_ID(gimbal_device_information)};
+	// uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 
 	uint8_t _gimbal_device_id{0};
 	hrt_abstime _last_gimbal_device_checked{0};

@@ -461,6 +461,54 @@ void InputMavlinkGimbalV2::_stream_gimbal_manager_status(const ControlData &cont
 	if (_gimbal_device_attitude_status_sub.updated()) {
 		_gimbal_device_attitude_status_sub.copy(&gimbal_device_attitude_status);
 
+		// Rate-limited logging to avoid spam
+		static hrt_abstime last_log_time = 0;
+		hrt_abstime now = hrt_absolute_time();
+
+		if (now - last_log_time > 1000000) { // Log every 1 second
+			PX4_INFO("=== Gimbal Device Attitude Status ===");
+			PX4_INFO("target_system: %d", gimbal_device_attitude_status.target_system);
+			PX4_INFO("target_component: %d", gimbal_device_attitude_status.target_component);
+			PX4_INFO("device_flags: 0x%04x", gimbal_device_attitude_status.device_flags);
+
+			// Print quaternion components
+			PX4_INFO("quaternion: [%.4f, %.4f, %.4f, %.4f]",
+				(double)gimbal_device_attitude_status.q[0],
+				(double)gimbal_device_attitude_status.q[1],
+				(double)gimbal_device_attitude_status.q[2],
+				(double)gimbal_device_attitude_status.q[3]);
+
+			// Print angular velocities
+			PX4_INFO("angular_velocity: x=%.4f, y=%.4f, z=%.4f",
+				(double)gimbal_device_attitude_status.angular_velocity_x,
+				(double)gimbal_device_attitude_status.angular_velocity_y,
+				(double)gimbal_device_attitude_status.angular_velocity_z);
+
+			PX4_INFO("failure_flags: 0x%04x", gimbal_device_attitude_status.failure_flags);
+			PX4_INFO("timestamp: %lu", gimbal_device_attitude_status.timestamp);
+			PX4_INFO("=====================================");
+
+			last_log_time = now;
+
+			// matrix::Eulerf euler_vehicle0{};
+
+			// vehicle_attitude_s vehicle_attitude0;
+			// if (_vehicle_attitude_sub.copy(&vehicle_attitude0)) {
+			// 	euler_vehicle0 = matrix::Quatf(vehicle_attitude0.q);
+
+			// 	PX4_INFO("Vehicle attitude - q: [%.3f, %.3f, %.3f, %.3f]",
+			// 	(double)vehicle_attitude0.q[0],
+			// 	(double)vehicle_attitude0.q[1],
+			// 	(double)vehicle_attitude0.q[2],
+			// 	(double)vehicle_attitude0.q[3]);
+
+			// 	PX4_INFO("Vehicle attitude - Roll: %.1f°, Pitch: %.1f°, Yaw: %.1f°",
+			// 	(double)math::degrees(euler_vehicle0(0)),
+			// 	(double)math::degrees(euler_vehicle0(1)),
+			// 	(double)math::degrees(euler_vehicle0(2)));
+			// }
+		}
+
 		gimbal_manager_status_s gimbal_manager_status{};
 		gimbal_manager_status.timestamp = hrt_absolute_time();
 		gimbal_manager_status.flags = gimbal_device_attitude_status.device_flags;
@@ -610,6 +658,8 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 		poll_timeout = timeout_ms - (hrt_absolute_time() - poll_start) / 1000;
 	}
 
+	// implementing the attack here might overwrite the valid control data
+	// but this is acceptable as the stabilization signal has higher priority
 	_stream_gimbal_manager_status(control_data);
 
 	if (_last_device_compid != control_data.device_compid) {

@@ -221,6 +221,7 @@ static int gimbal_thread_main(int argc, char *argv[])
 				const unsigned int poll_timeout =
 					(already_active || thread_data.last_input_active == -1) ? 20 : 0;
 
+				// this should call the update that runs _stream_gimbal_manager_status
 				update_result = thread_data.input_objs[i]->update(poll_timeout, thread_data.control_data, already_active);
 
 				bool break_loop = false;
