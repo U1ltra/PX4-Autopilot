@@ -446,6 +446,9 @@ int InputMavlinkGimbalV2::initialize()
 		return -errno;
 	}
 
+	// Initialize filters
+	initialize_filters(250.0f, 30.0f);
+
 	// rate-limit inputs to 100Hz. If we don't do this and the output is configured to mavlink mode,
 	// it will publish vehicle_command's as well, causing the input poll() in here to return
 	// immediately, which in turn will cause an output update and thus a busy loop.
@@ -461,52 +464,94 @@ void InputMavlinkGimbalV2::_stream_gimbal_manager_status(const ControlData &cont
 	if (_gimbal_device_attitude_status_sub.updated()) {
 		_gimbal_device_attitude_status_sub.copy(&gimbal_device_attitude_status);
 
+		// instrumentation of this function call frequency
+		// static hrt_abstime last_call = 0;
+		// hrt_abstime now = hrt_absolute_time();
+		// if (last_call > 0) {
+		// 	uint64_t dt_us = now - last_call;
+		// 	double frequency_hz = 1000000.0 / (double)dt_us;
+		// 	PX4_INFO("_stream_gimbal_manager_status called after %lu us (%.1f Hz)",
+		// 		dt_us, frequency_hz);
+		// }
+		// last_call = now;
+
 		// Rate-limited logging to avoid spam
 		static hrt_abstime last_log_time = 0;
 		hrt_abstime now = hrt_absolute_time();
 
 		if (now - last_log_time > 1000000) { // Log every 1 second
+			last_log_time = now;
+
+
+			matrix::Dcmf R_gimbal_to_world{};
+			matrix::Quatf q_gimbal(gimbal_device_attitude_status.q);
+			R_gimbal_to_world = Dcmf(q_gimbal);
+
+			matrix::Quatf q_vehicle0{};
+			matrix::Dcmf R_vehicle_to_world{};
+			matrix::Dcmf R_world_to_vehicle{};
+
+			vehicle_attitude_s vehicle_attitude0;
+			_vehicle_attitude_sub.copy(&vehicle_attitude0);
+			q_vehicle0 = matrix::Quatf(vehicle_attitude0.q);
+			R_vehicle_to_world = Dcmf(q_vehicle0);
+			R_world_to_vehicle = R_vehicle_to_world.transpose();
+
+			matrix::Dcmf R_gimbal_to_vehicle{};
+			R_gimbal_to_vehicle = R_world_to_vehicle * R_gimbal_to_world;
+			matrix::Vector3f angular_velocity_gimbal{};
+			matrix::Vector3f angular_velocity_gimbal_filtered{};
+			matrix::Vector3f angular_velocity_vehicle{};
+			angular_velocity_gimbal(0) = gimbal_device_attitude_status.angular_velocity_x;
+			angular_velocity_gimbal(1) = gimbal_device_attitude_status.angular_velocity_y;
+			angular_velocity_gimbal(2) = gimbal_device_attitude_status.angular_velocity_z;
+			angular_velocity_gimbal_filtered = ProcessSample(angular_velocity_gimbal);
+			angular_velocity_vehicle = R_world_to_vehicle * angular_velocity_gimbal_filtered;
+
+
+
 			PX4_INFO("=== Gimbal Device Attitude Status ===");
 			PX4_INFO("target_system: %d", gimbal_device_attitude_status.target_system);
 			PX4_INFO("target_component: %d", gimbal_device_attitude_status.target_component);
 			PX4_INFO("device_flags: 0x%04x", gimbal_device_attitude_status.device_flags);
 
 			// Print quaternion components
-			PX4_INFO("quaternion: [%.4f, %.4f, %.4f, %.4f]",
-				(double)gimbal_device_attitude_status.q[0],
-				(double)gimbal_device_attitude_status.q[1],
-				(double)gimbal_device_attitude_status.q[2],
-				(double)gimbal_device_attitude_status.q[3]);
+			// PX4_INFO("quaternion: [%.4f, %.4f, %.4f, %.4f]",
+			// 	(double)gimbal_device_attitude_status.q[0],
+			// 	(double)gimbal_device_attitude_status.q[1],
+			// 	(double)gimbal_device_attitude_status.q[2],
+			// 	(double)gimbal_device_attitude_status.q[3]);
 
 			// Print angular velocities
 			PX4_INFO("angular_velocity: x=%.4f, y=%.4f, z=%.4f",
 				(double)gimbal_device_attitude_status.angular_velocity_x,
 				(double)gimbal_device_attitude_status.angular_velocity_y,
 				(double)gimbal_device_attitude_status.angular_velocity_z);
+			//  gimbal angular velocity projected to vehicle frame
+			PX4_INFO("angular_velocity_vehicle: x=%.4f, y=%.4f, z=%.4f",
+				(double)angular_velocity_vehicle(0),
+				(double)angular_velocity_vehicle(1),
+				(double)angular_velocity_vehicle(2));
 
 			PX4_INFO("failure_flags: 0x%04x", gimbal_device_attitude_status.failure_flags);
 			PX4_INFO("timestamp: %lu", gimbal_device_attitude_status.timestamp);
 			PX4_INFO("=====================================");
 
-			last_log_time = now;
 
-			// matrix::Eulerf euler_vehicle0{};
+			PX4_INFO("Vehicle attitude - q: [%.3f, %.3f, %.3f, %.3f]",
+				(double)vehicle_attitude0.q[0],
+				(double)vehicle_attitude0.q[1],
+				(double)vehicle_attitude0.q[2],
+				(double)vehicle_attitude0.q[3]);
 
-			// vehicle_attitude_s vehicle_attitude0;
-			// if (_vehicle_attitude_sub.copy(&vehicle_attitude0)) {
-			// 	euler_vehicle0 = matrix::Quatf(vehicle_attitude0.q);
+			matrix::Eulerf euler_vehicle0{};
+			euler_vehicle0 = matrix::Quatf(vehicle_attitude0.q);
+			PX4_INFO("Vehicle attitude - Roll: %.1f°, Pitch: %.1f°, Yaw: %.1f°",
+			(double)math::degrees(euler_vehicle0(0)),
+			(double)math::degrees(euler_vehicle0(1)),
+			(double)math::degrees(euler_vehicle0(2)));
 
-			// 	PX4_INFO("Vehicle attitude - q: [%.3f, %.3f, %.3f, %.3f]",
-			// 	(double)vehicle_attitude0.q[0],
-			// 	(double)vehicle_attitude0.q[1],
-			// 	(double)vehicle_attitude0.q[2],
-			// 	(double)vehicle_attitude0.q[3]);
 
-			// 	PX4_INFO("Vehicle attitude - Roll: %.1f°, Pitch: %.1f°, Yaw: %.1f°",
-			// 	(double)math::degrees(euler_vehicle0(0)),
-			// 	(double)math::degrees(euler_vehicle0(1)),
-			// 	(double)math::degrees(euler_vehicle0(2)));
-			// }
 		}
 
 		gimbal_manager_status_s gimbal_manager_status{};

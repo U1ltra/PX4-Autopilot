@@ -107,31 +107,32 @@ public:
 	int initialize() override;
 	void print_status() const override;
 
-	// void Initialize(float sample_rate, float cutoff_freq) {
-	// 	_sample_rate_hz = sample_rate;
-	// 	_cutoff_freq_hz = cutoff_freq;
+	void initialize_filters(float sample_rate, float cutoff_freq) {
+		_sample_rate_hz = 250.0f; // default
+		_cutoff_freq_hz = 30.0f; // default
 
-	// 	for (int axis = 0; axis < 3; axis++) {
-	// 	_lp_filter[axis].set_cutoff_frequency(sample_rate, cutoff_freq);
-	// 	_lp_filter[axis].reset(0.0f);
+		for (int axis = 0; axis < 3; axis++) {
+		_lp_filter[axis].set_cutoff_frequency(_sample_rate_hz, _cutoff_freq_hz);
+		_lp_filter[axis].reset(0.0f);
 
-	// 	// Optional: configure notch filter for known vibrations
-	// 	// _notch_filter[axis].setParameters(sample_rate, notch_freq, bandwidth);
-	// 	}
-	// }
+		// Optional: configure notch filter for known vibrations
+		// _notch_filter[axis].setParameters(_sample_rate_hz, notch_freq, bandwidth);
+		}
+	}
 
-	// Vector3f ProcessSample(const sensor_gyro_s& data) {
-	// 	Vector3f raw_data(data.x, data.y, data.z);
+	matrix::Vector3f ProcessSample(const matrix::Vector3f& data) {
+		matrix::Vector3f raw_data{};
+		raw_data = data;
 
-	// 	// Apply filtering
-	// 	for (int axis = 0; axis < 3; axis++) {
-	// 	float filtered = _lp_filter[axis].apply(raw_data(axis));
-	// 	// filtered = _notch_filter[axis].apply(filtered); // If using notch
-	// 	_angular_velocity(axis) = filtered;
-	// 	}
+		// Apply filtering
+		for (int axis = 0; axis < 3; axis++) {
+		float filtered = _lp_filter[axis].apply(raw_data(axis));
+		// filtered = _notch_filter[axis].apply(filtered); // If using notch
+		_angular_velocity(axis) = filtered;
+		}
 
-	// 	return _angular_velocity;
-	// }
+		return _angular_velocity;
+	}
 
 private:
 	UpdateResult _process_set_attitude(ControlData &control_data, const gimbal_manager_set_attitude_s &set_attitude);
@@ -164,11 +165,11 @@ private:
 	uint8_t _last_device_compid = 0;
 
 
-	// math::LowPassFilter2p<float> _lp_filter[3];
-	// math::NotchFilter<float> _notch_filter[3];  // Optional
-	// float _sample_rate_hz;
-	// float _cutoff_freq_hz;
-	// Vector3f _angular_velocity;
+	math::LowPassFilter2p<float> _lp_filter[3];
+	math::NotchFilter<float> _notch_filter[3];  // Optional
+	float _sample_rate_hz;
+	float _cutoff_freq_hz;
+	matrix::Vector3f _angular_velocity;
 
 };
 
