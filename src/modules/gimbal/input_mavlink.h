@@ -146,7 +146,7 @@ private:
 			const matrix::Vector3f &angular_velocity, const uint64_t timestamp);
 	void _ack_vehicle_command(const vehicle_command_s &cmd, uint8_t result);
 	void _stream_gimbal_manager_information(const ControlData &control_data);
-	void _stream_gimbal_manager_status(const ControlData &control_data);
+	void _stream_gimbal_manager_status(ControlData &control_data);
 	void _read_control_data_from_position_setpoint_sub(ControlData &control_data);
 
 	int _vehicle_roi_sub = -1;

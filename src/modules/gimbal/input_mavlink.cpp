@@ -457,7 +457,7 @@ int InputMavlinkGimbalV2::initialize()
 	return 0;
 }
 
-void InputMavlinkGimbalV2::_stream_gimbal_manager_status(const ControlData &control_data)
+void InputMavlinkGimbalV2::_stream_gimbal_manager_status(ControlData &control_data) // removed const. TODO: the stabilization should actually be done elsewhere
 {
 	gimbal_device_attitude_status_s gimbal_device_attitude_status{};
 
@@ -508,7 +508,19 @@ void InputMavlinkGimbalV2::_stream_gimbal_manager_status(const ControlData &cont
 			angular_velocity_gimbal_filtered = ProcessSample(angular_velocity_gimbal);
 			angular_velocity_vehicle = R_world_to_vehicle * angular_velocity_gimbal_filtered;
 
+			matrix::Vector3f angular_velocity_compensate;
+			angular_velocity_compensate(0) = angular_velocity_vehicle(0); // roll
+			angular_velocity_compensate(1) = angular_velocity_gimbal(1); // pitch
+			angular_velocity_compensate(2) = angular_velocity_vehicle(2); // yaw
 
+			control_data.type = ControlData::Type::Angle;
+			control_data.type_data.angle.frames[0] = ControlData::TypeData::TypeAngle::Frame::AngularRate;
+			control_data.type_data.angle.frames[1] = ControlData::TypeData::TypeAngle::Frame::AngularRate;
+			control_data.type_data.angle.frames[2] = ControlData::TypeData::TypeAngle::Frame::AngularRate;
+			control_data.type_data.angle.angular_velocity[0] = angular_velocity_compensate(0);
+			control_data.type_data.angle.angular_velocity[1] = angular_velocity_compensate(1);
+			control_data.type_data.angle.angular_velocity[2] = angular_velocity_compensate(2);
+			control_data.timestamp_last_update = gimbal_device_attitude_status.timestamp;
 
 			PX4_INFO("=== Gimbal Device Attitude Status ===");
 			PX4_INFO("target_system: %d", gimbal_device_attitude_status.target_system);
@@ -651,6 +663,7 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 		}
 
 		if (polls[0].revents & POLLIN) {
+			PX4_INFO("Received gimbal_manager_set_attitude");
 			gimbal_manager_set_attitude_s set_attitude;
 			orb_copy(ORB_ID(gimbal_manager_set_attitude), _gimbal_manager_set_attitude_sub, &set_attitude);
 
@@ -658,6 +671,7 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 		}
 
 		if (polls[1].revents & POLLIN) {
+			PX4_INFO("Received vehicle_roi");
 			vehicle_roi_s vehicle_roi;
 			orb_copy(ORB_ID(vehicle_roi), _vehicle_roi_sub, &vehicle_roi);
 
@@ -670,6 +684,7 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 
 		// check whether the position setpoint got updated
 		if (polls[2].revents & POLLIN) {
+			PX4_INFO("Received position_setpoint_triplet");
 			position_setpoint_triplet_s position_setpoint_triplet;
 			orb_copy(ORB_ID(position_setpoint_triplet), _position_setpoint_triplet_sub,
 				 &position_setpoint_triplet);
@@ -682,6 +697,7 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 		}
 
 		if (polls[3].revents & POLLIN) {
+			PX4_INFO("Received vehicle_command");
 			vehicle_command_s vehicle_command;
 			orb_copy(ORB_ID(vehicle_command), _vehicle_command_sub, &vehicle_command);
 
@@ -693,6 +709,7 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 		}
 
 		if (polls[4].revents & POLLIN) {
+			PX4_INFO("Received gimbal_manager_set_manual_control");
 			gimbal_manager_set_manual_control_s set_manual_control;
 			orb_copy(ORB_ID(gimbal_manager_set_manual_control), _gimbal_manager_set_manual_control_sub,
 				 &set_manual_control);
@@ -706,6 +723,7 @@ InputMavlinkGimbalV2::update(unsigned int timeout_ms, ControlData &control_data,
 	// implementing the attack here might overwrite the valid control data
 	// but this is acceptable as the stabilization signal has higher priority
 	_stream_gimbal_manager_status(control_data);
+	update_result = UpdateResult::UpdatedActive;
 
 	if (_last_device_compid != control_data.device_compid) {
 		_last_device_compid = control_data.device_compid;
